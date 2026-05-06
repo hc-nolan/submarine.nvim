@@ -30,6 +30,23 @@ require("submarine").pick()
 require("submarine").pick_functions("snacks")
 ```
 
+### Full example
+
+```lua
+vim.pack.add({
+  { src = "https://github.com/mason-org/mason.nvim" },
+  { src = "https://github.com/williamboman/mason-lspconfig.nvim" },
+  { src = "https://github.com/hc-nolan/submarine.nvim" },
+  { src = "https://github.com/folke/snacks.nvim" }
+})
+-- auto-install lua_ls
+require("mason").setup()
+require("mason-lspconfig").setup({ ensure_installed = { "lua_ls" }})
+vim.lsp.enable('lua_ls')
+
+vim.keymap.set("n", "<leader>sub", function() require('submarine').pick() end)
+```
+
 ## Configuration
 
 ```lua
