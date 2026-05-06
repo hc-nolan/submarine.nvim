@@ -1,46 +1,65 @@
-- Opens a Snacks picker that lets you search through module function exports
-- `Snacks.picker.commands()` accomplishes the module part (if the plugin registers a command), but it doesn't show function exports
-  - However, they're available, because you can tab-complete through them
-- Bonus
-  - Support for plugins that don't register commands with `vim.api.nvim_create_user_command`
-  - Load plugin docstrings and/or definitions
-    - Look at how `vim.lsp.buf.hover()` works.
+# submarine.nvim
+
+Browse loaded Lua modules and their exported functions, with hover documentation
+sourced from lua-language-server.
+
+## Requirements
+
+- Neovim ≥ 0.10
+- [lua-language-server](https://github.com/LuaLS/lua-language-server) on `$PATH`
+- [snacks.nvim](https://github.com/folke/snacks.nvim) (picker backend)
+
+## Installation
+
+Add to your `init.lua`:
+
 ```lua
--- this returns the docstring and stuff for what's under the cursor
--- one liner:
--- :lua local c=vim.lsp.get_clients({name='lua_ls'})[1]; local pos={line=vim.fn.line('.')-1, character=vim.fn.col('.')-1}; c:request('textDocument/completion',{textDocument={uri=vim.uri_from_bufnr(0)},position=pos},function(e,r) local items=r and (r.items or r) or {}; if items[1] then c:request('completionItem/resolve',items[1],function(e2,r2) print(vim.inspect(r2 and r2.documentation)) end) end end)
-local c = vim.lsp.get_clients({name='lua_ls'})[1]
-local pos = {line=vim.fn.line('.')-1, character=vim.fn.col('.')-1}
-c:request(
-  'textDocument/completion',
-  {textDocument={uri=vim.uri_from_bufnr(0)},position=pos},
-  function(e,r)
-    local items=r and (r.items or r) or {}
-    if items[1] then c:request(
-      'completionItem/resolve',
-      items[1],
-      function(e2,r2)
-        print(vim.inspect(r2 and r2.documentation))
-      end)
-    end
-  end)`
+vim.pack.add({
+  { src = "https://github.com/hc-nolan/submarine.nvim" },
+  { src = "https://github.com/folke/snacks.nvim" }
+})
 ```
-- So how do I make this work with a function name instead of cursor position?
 
-# Initial thoughts
+## Usage
 
-- The plugin that gave me the idea was Gitsigns so that's what I'm going to work with first.
-- This prints the exports: `:lua print(vim.inspect(require('gitsigns.cli').complete('', 'Gitsigns ')))`
-  - `{ "attach", "undo_stage_hunk", "refresh", "stage_buffer", "reset_buffer_index", "setloclist", "setqflist", "next_hunk", "detach_all", "preview_hunk", "preview_hunk_inline", "select_hunk", "get_hunks", "toggle_numhl", "toggle_linehl", "toggle_word_diff", "toggle_current_line_blame", "toggle_deleted", "detach", "stage_hunk", "reset_base", "show_commit", "get_actions", "reset_hunk", "show", "blame_line", "toggle_signs", "reset_buffer", "prev_hunk", "nav_hunk", "blame", "change_base", "diffthis", "detach", "attach", "detach_all", "dump_cache", "debug_messages", "clear_debug" }`
+```lua
+-- Browse all loaded top-level modules, then drill into a module's functions
+require("submarine").pick()
 
+-- Jump straight to a specific module's functions
+require("submarine").pick_functions("snacks")
+```
 
+## Configuration
 
-- Need to look at
-    - LSP specification
-    - LuaLS code
-    - Does LSP/LuaLS have a way to arbitrarily query modules and functions? Everything seems to be based on what's in the current cursor buffer.
+```lua
+require("submarine").setup({
+  -- Command used to start lua-language-server
+  luals_cmd = { "lua-language-server" },
 
-https://neovim.io/doc/user/lsp/
-https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/
-https://github.com/Microsoft/language-server-protocol/blob/gh-pages/_specifications/specification-3-16.md
-https://github.com/LuaLS/lua-language-server
+  -- Workspace root passed to lua_ls (controls which files it indexes)
+  root_dir = vim.fn.stdpath("config"),
+})
+```
+
+## Adding a picker backend
+
+Adding support for a different picker (telescope, fzf-lua, etc.) is pretty
+straightforward. Create a module that exposes two functions matching the
+`submarine.PickerBackend` interface in `lua/submarine/pickers/init.lua`, then
+swap it in at startup:
+
+```lua
+require("submarine.pickers").set_backend(require("submarine.pickers.my_picker"))
+```
+
+## Notes
+
+- Only modules already present in `package.loaded` are shown; submarine never
+  `require`s anything on your behalf.
+- Submodule names (those containing a `.`) are excluded from `pick()`; call
+  `pick_functions("my.submodule")` directly if needed.
+- Functions defined in C or via `load()` / `loadstring()` are silently skipped,
+  as they have no source file for lua-language-server to index.
+- Aliased functions (multiple keys pointing to the same function) are grouped
+  into a single entry displayed as `foo / bar`.
