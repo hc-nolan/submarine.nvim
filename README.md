@@ -3,6 +3,9 @@
 Browse loaded Lua modules and their exported functions, with hover documentation
 sourced from lua-language-server.
 
+![](./img/1.png)
+![](./img/2.png)
+
 ## Requirements
 
 - Neovim ≥ 0.10
