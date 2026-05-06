@@ -4,10 +4,13 @@ local M = {}
 
 ---@alias submarine.LualsCallback fun(client_id: integer|nil): nil
 
----@type submarine.LualsCallback[]
-local luals_init_queue = {}
+local luals_ready = false
+local workspace_token = nil ---@type string|integer|nil
+local workspace_progress = nil ---@type string|nil
 
----Start or reuse the lua_ls client, calling `callback` once it is initialized.
+---Start or reuse the lua_ls client. `callback` is called once the client is
+---initialized *and* has finished loading its workspace. If the workspace is
+---still loading, notifies the user and returns without calling `callback`.
 ---@param callback submarine.LualsCallback
 function M.get_luals(callback)
 	local id = vim.lsp.start({
@@ -22,22 +25,35 @@ function M.get_luals(callback)
 				},
 			},
 		},
-		on_init = function(client)
-			for _, cb in ipairs(luals_init_queue) do
-				cb(client.id)
-			end
-			luals_init_queue = {}
-		end,
+		handlers = {
+			["$/progress"] = function(_, result, ctx)
+				local v = result.value
+				if v and v.kind == "begin" and v.title == "Loading workspace" then
+					workspace_token = result.token
+					workspace_progress = v.message
+					luals_ready = false
+				elseif v and v.kind == "report" and result.token == workspace_token then
+					workspace_progress = v.message
+				elseif v and v.kind == "end" and result.token == workspace_token then
+					workspace_token = nil
+					workspace_progress = nil
+					luals_ready = true
+				end
+			end,
+		},
 	})
 	if not id then
 		callback(nil)
 		return
 	end
-	local client = vim.lsp.get_client_by_id(id)
-	if client and client.initialized then
+	if luals_ready then
 		callback(id)
 	else
-		luals_init_queue[#luals_init_queue + 1] = callback
+		local msg = "submarine: lua_ls is still loading workspace"
+		if workspace_progress then
+			msg = msg .. " (" .. workspace_progress .. ")"
+		end
+		vim.notify(msg .. " — try again in a moment", vim.log.levels.WARN)
 	end
 end
 
