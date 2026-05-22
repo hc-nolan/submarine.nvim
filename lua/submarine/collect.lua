@@ -23,13 +23,14 @@ function M.collect_fn_entries(mod)
 	for key, val in pairs(mod) do
 		if type(val) == "function" then
 			local info = debug.getinfo(val, "S")
-			if info.source:sub(1, 1) == "@" then
-				local dedup_key = info.source .. ":" .. info.linedefined
-				if not fn_map[dedup_key] then
-					fn_map[dedup_key] = { names = {}, fn = val, info = info }
-				end
-				fn_map[dedup_key].names[#fn_map[dedup_key].names + 1] = key
+			-- Lua functions dedup by source+line; C functions dedup by identity.
+			local dedup_key = info.source:sub(1, 1) == "@"
+				and (info.source .. ":" .. info.linedefined)
+				or val
+			if not fn_map[dedup_key] then
+				fn_map[dedup_key] = { names = {}, fn = val, info = info }
 			end
+			fn_map[dedup_key].names[#fn_map[dedup_key].names + 1] = key
 		end
 	end
 	return vim.tbl_values(fn_map)

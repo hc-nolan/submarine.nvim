@@ -29,7 +29,8 @@ function M.pick_functions(module_name)
 			vim.notify("submarine: failed to start lua_ls", vim.log.levels.ERROR)
 			return
 		end
-		lsp.fetch_docs(fns, client_id, function(results)
+		lsp.fetch_docs(fns, client_id, module_name, function(results)
+			lsp.stop_luals(client_id)
 			vim.schedule(function()
 				pickers.open_functions_picker(results, module_name)
 			end)
